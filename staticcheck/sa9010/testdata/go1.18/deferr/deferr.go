@@ -2,7 +2,7 @@ package deferr
 
 func x() {
 
-	defer tpReturnFuncInt[int](0) //@ diag(`defered return function not called`)
+	defer tpReturnFuncInt[int](0) //@ diag(`deferred return function not called`)
 	defer tpReturnFuncInt(0)(0)
 }
 

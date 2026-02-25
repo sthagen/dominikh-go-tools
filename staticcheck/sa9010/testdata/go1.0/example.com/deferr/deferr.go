@@ -54,18 +54,18 @@ func x() {
 	defer func() (int, func()) { return 0, func() {} }()
 
 	// Wrong.
-	defer returnFunc()                                                     //@ diag(`defered return function not called`)
-	defer varReturnFunc()                                                  //@ diag(`defered return function not called`)
-	defer namedReturnFunc()                                                //@ diag(`defered return function not called`)
-	defer t.returnFunc()                                                   //@ diag(`defered return function not called`)
-	defer tt.returnFunc()                                                  //@ diag(`defered return function not called`)
-	defer tt.t.returnFunc()                                                //@ diag(`defered return function not called`)
-	defer func() func() { return func() {} }()                             //@ diag(`defered return function not called`)
-	defer returnFuncInt(0)                                                 //@ diag(`defered return function not called`)
-	defer t.returnFuncInt(0)                                               //@ diag(`defered return function not called`)
-	defer tt.returnFuncInt(0)                                              //@ diag(`defered return function not called`)
-	defer tt.t.returnFuncInt(0)                                            //@ diag(`defered return function not called`)
-	defer func(int) func(int) int { return func(int) int { return 0 } }(0) //@ diag(`defered return function not called`)
+	defer returnFunc()                                                     //@ diag(`deferred return function not called`)
+	defer varReturnFunc()                                                  //@ diag(`deferred return function not called`)
+	defer namedReturnFunc()                                                //@ diag(`deferred return function not called`)
+	defer t.returnFunc()                                                   //@ diag(`deferred return function not called`)
+	defer tt.returnFunc()                                                  //@ diag(`deferred return function not called`)
+	defer tt.t.returnFunc()                                                //@ diag(`deferred return function not called`)
+	defer func() func() { return func() {} }()                             //@ diag(`deferred return function not called`)
+	defer returnFuncInt(0)                                                 //@ diag(`deferred return function not called`)
+	defer t.returnFuncInt(0)                                               //@ diag(`deferred return function not called`)
+	defer tt.returnFuncInt(0)                                              //@ diag(`deferred return function not called`)
+	defer tt.t.returnFuncInt(0)                                            //@ diag(`deferred return function not called`)
+	defer func(int) func(int) int { return func(int) int { return 0 } }(0) //@ diag(`deferred return function not called`)
 
 	// Function returns a function which returns another function. This is
 	// getting silly and is not checked.

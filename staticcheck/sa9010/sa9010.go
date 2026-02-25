@@ -95,7 +95,7 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 		}
 		if returnsFunc {
-			report.Report(pass, def, "defered return function not called")
+			report.Report(pass, def, "deferred return function not called")
 		}
 	}
 
