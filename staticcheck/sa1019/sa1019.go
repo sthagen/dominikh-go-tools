@@ -55,7 +55,7 @@ func run(pass *analysis.Pass) (any, error) {
 		return !strings.Contains(path, ".")
 	}
 
-	handleDeprecation := func(depr *deprecated.IsDeprecated, node ast.Node, deprecatedObjName string, pkgPath string, tfn types.Object, nodeRender func() string) {
+	handleDeprecation := func(depr *deprecated.IsDeprecated, node ast.Node, deprecatedObjName string, pkgPath string, tfn types.Object) {
 		std, ok := knowledge.StdlibDeprecations[deprecatedObjName]
 		if !ok && isStdlibPath(pkgPath) {
 			// Deprecated object in the standard library, but we don't know the details of the deprecation.
@@ -99,38 +99,33 @@ func run(pass *analysis.Pass) (any, error) {
 			case knowledge.DeprecatedNeverUse:
 				report.Report(pass, node,
 					fmt.Sprintf("%s has been deprecated since %s because it shouldn't be used: %s",
-						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), depr.Msg))
+						deprecatedObjName, formatGoVersion(std.DeprecatedSince), depr.Msg))
 			case std.DeprecatedSince, knowledge.DeprecatedUseNoLonger:
 				report.Report(pass, node,
 					fmt.Sprintf("%s has been deprecated since %s: %s",
-						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), depr.Msg))
+						deprecatedObjName, formatGoVersion(std.DeprecatedSince), depr.Msg))
 			default:
 				report.Report(pass, node,
 					fmt.Sprintf("%s has been deprecated since %s and an alternative has been available since %s: %s",
-						report.Render(pass, node), formatGoVersion(std.DeprecatedSince), formatGoVersion(std.AlternativeAvailableSince), depr.Msg))
+						deprecatedObjName, formatGoVersion(std.DeprecatedSince), formatGoVersion(std.AlternativeAvailableSince), depr.Msg))
 			}
 		} else {
-			report.Report(pass, node, fmt.Sprintf("%s is deprecated: %s", nodeRender(), depr.Msg))
+			report.Report(pass, node, fmt.Sprintf("%s is deprecated: %s", deprecatedObjName, depr.Msg))
 		}
 	}
 
 	var tfn types.Object
 	stack := 0
 
-	checkIdentObj := func(
-		node ast.Node,
-		id *ast.Ident,
-		obj types.Object,
-		nameFunc func() string,
-		nodeRender func() string,
-	) bool {
+	checkIdentObj := func(sel *ast.SelectorExpr) bool {
+		obj := pass.TypesInfo.ObjectOf(sel.Sel)
+
 		if obj_, ok := obj.(*types.Func); ok {
 			obj = obj_.Origin()
 		}
 		if obj.Pkg() == nil {
 			return true
 		}
-
 		if obj.Pkg() == pass.Pkg {
 			// A package is allowed to use its own deprecated objects
 			return true
@@ -153,8 +148,12 @@ func run(pass *analysis.Pass) (any, error) {
 			return true
 		}
 
+		node := ast.Node(sel)
+		if pass.TypesInfo.Types[sel.X].IsType() {
+			node = sel.Sel
+		}
 		if depr, ok := deprs.Objects[obj]; ok {
-			handleDeprecation(depr, node, nameFunc(), obj.Pkg().Path(), tfn, nodeRender)
+			handleDeprecation(depr, node, code.SelectorName(pass, sel), obj.Pkg().Path(), tfn)
 		}
 		return true
 	}
@@ -175,38 +174,32 @@ func run(pass *analysis.Pass) (any, error) {
 		switch v := node.(type) {
 		// FIXME(dh): this misses dot-imported objects
 		case *ast.SelectorExpr:
-			sel := v
-			obj := pass.TypesInfo.ObjectOf(sel.Sel)
-			return checkIdentObj(sel, sel.Sel, obj, func() string {
-				return code.SelectorName(pass, sel)
-			}, func() string {
-				return report.Render(pass, sel)
-			})
+			return checkIdentObj(v)
 
 		case *ast.CompositeLit:
+			litType := pass.TypesInfo.Types[v.Type]
+			if !litType.IsType() {
+				// This is probably unreachable.
+				return true
+			}
+			if _, ok := litType.Type.Underlying().(*types.Struct); !ok {
+				// We don't want to look at expressions in map initializers, for
+				// example.
+				return true
+			}
 			for _, elt := range v.Elts {
 				kv, ok := elt.(*ast.KeyValueExpr)
 				if !ok {
 					return true
 				}
 				key, ok := kv.Key.(*ast.Ident)
-				// ast.KeyValueExpr also represents key value pairs in maps, where the `Key` can be a *ast.BasicLit
 				if !ok {
+					// This is probably unreachable, since we're looking at keys
+					// in a struct initializer.
 					return true
 				}
-				obj := pass.TypesInfo.ObjectOf(key)
-				checkIdentObj(key, key, obj, func() string {
-					return key.Name
-				}, func() string {
-					if se, ok := v.Type.(*ast.SelectorExpr); ok {
-						if xI, ok := se.X.(*ast.Ident); ok {
-							return fmt.Sprintf("%s.%s.%s", xI.Name, se.Sel.Name, key.Name)
-						} else {
-							return fmt.Sprintf("%s.%s", se.Sel.Name, key.Name)
-						}
-					}
-					return key.Name
-				})
+				sel := &ast.SelectorExpr{X: v.Type, Sel: key}
+				checkIdentObj(sel)
 			}
 		}
 		return true
@@ -244,9 +237,7 @@ func run(pass *analysis.Pass) (any, error) {
 				return
 			}
 
-			handleDeprecation(depr, spec.Path, path, path, nil, func() string {
-				return report.Render(pass, node)
-			})
+			handleDeprecation(depr, spec.Path, path, path, nil)
 		}
 	}
 	pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Nodes(nil, fn)
