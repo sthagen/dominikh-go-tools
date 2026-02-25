@@ -68,9 +68,9 @@ func x() {
 	defer func(int) func(int) int { return func(int) int { return 0 } }(0) //@ diag(`deferred return function not called`)
 
 	// Function returns a function which returns another function. This is
-	// getting silly and is not checked.
-	defer silly1()()
-	defer func() func() func() {
+	// getting silly, but we do flag it.
+	defer silly1()()             //@ diag(`deferred return function not called`)
+	defer func() func() func() { //@ diag(`deferred return function not called`)
 		return func() func() {
 			return func() {}
 		}
