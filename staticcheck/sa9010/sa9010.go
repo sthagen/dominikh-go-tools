@@ -41,7 +41,7 @@ function:
 `,
 		Since:    "Unreleased",
 		Severity: lint.SeverityWarning,
-		MergeIf:  lint.MergeIfAny,
+		MergeIf:  lint.MergeIfAll,
 	},
 })
 
