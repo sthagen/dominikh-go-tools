@@ -151,7 +151,6 @@ func lift(fn *Function) bool {
 	//
 	// But we will start with the simplest correct code.
 	var df domFrontier
-	var closure *closure
 	var newPhis BlockMap[[]newPhi]
 
 	// During this pass we will replace some BasicBlock.Instrs
@@ -194,9 +193,6 @@ func lift(fn *Function) bool {
 
 				if numAllocs == 0 {
 					df = buildDomFrontier(fn)
-					if len(fn.Blocks) > 2 {
-						closure = transitiveClosure(fn)
-					}
 					newPhis = make(BlockMap[[]newPhi], len(fn.Blocks))
 
 					if debugLifting {
@@ -260,7 +256,7 @@ func lift(fn *Function) bool {
 		for _, b := range fn.Blocks {
 			for _, instr := range b.Instrs {
 				if instr, ok := instr.(*Alloc); ok && instr.index >= 0 {
-					liftAlloc(closure, df, instr, newPhis)
+					liftAlloc(df, instr, newPhis)
 				}
 			}
 		}
@@ -541,109 +537,6 @@ func (s *BlockSet) Take() int {
 	}
 
 	return -1
-}
-
-type closure struct {
-	span       []uint32
-	reachables BlockMap[interval]
-}
-
-type interval uint32
-
-const (
-	flagMask   = 1 << 31
-	numBits    = 20
-	lengthBits = 32 - numBits - 1
-	lengthMask = (1<<lengthBits - 1) << numBits
-	numMask    = 1<<numBits - 1
-)
-
-func (c closure) has(s, v *BasicBlock) bool {
-	idx := uint32(v.Index)
-	if idx == 1 || s.Dominates(v) {
-		return true
-	}
-	r := c.reachable(s.Index)
-	for i := 0; i < len(r); i++ {
-		inv := r[i]
-		var start, end uint32
-		if inv&flagMask == 0 {
-			// small interval
-			start = uint32(inv & numMask)
-			end = start + uint32(inv&lengthMask)>>numBits
-		} else {
-			// large interval
-			i++
-			start = uint32(inv & numMask)
-			end = uint32(r[i])
-		}
-		if idx >= start && idx <= end {
-			return true
-		}
-	}
-	return false
-}
-
-func (c closure) reachable(id int) []interval {
-	return c.reachables[c.span[id]:c.span[id+1]]
-}
-
-func (c closure) walk(current *BasicBlock, b *BasicBlock, visited []bool) {
-	// TODO(dh): the 'current' argument seems to be unused
-	// TODO(dh): there's no reason for this to be a method
-	visited[b.Index] = true
-	for _, succ := range b.Succs {
-		if visited[succ.Index] {
-			continue
-		}
-		visited[succ.Index] = true
-		c.walk(current, succ, visited)
-	}
-}
-
-func transitiveClosure(fn *Function) *closure {
-	reachable := make(BlockMap[bool], len(fn.Blocks))
-	c := &closure{}
-	c.span = make([]uint32, len(fn.Blocks)+1)
-
-	addInterval := func(start, end uint32) {
-		if l := end - start; l <= 1<<lengthBits-1 {
-			n := interval(l<<numBits | start)
-			c.reachables = append(c.reachables, n)
-		} else {
-			n1 := interval(1<<31 | start)
-			n2 := interval(end)
-			c.reachables = append(c.reachables, n1, n2)
-		}
-	}
-
-	for i, b := range fn.Blocks[1:] {
-		for i := range reachable {
-			reachable[i] = false
-		}
-
-		c.walk(b, b, reachable)
-		start := ^uint32(0)
-		for id, isReachable := range reachable {
-			if !isReachable {
-				if start != ^uint32(0) {
-					end := uint32(id) - 1
-					addInterval(start, end)
-					start = ^uint32(0)
-				}
-				continue
-			} else if start == ^uint32(0) {
-				start = uint32(id)
-			}
-		}
-		if start != ^uint32(0) {
-			addInterval(start, uint32(len(reachable))-1)
-		}
-
-		c.span[i+2] = uint32(len(c.reachables))
-	}
-
-	return c
 }
 
 // newPhi is a pair of a newly introduced φ-node and the lifted Alloc
@@ -985,7 +878,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 }
 
 // liftAlloc lifts alloc into registers and populates newPhis with all the φ-nodes it may require.
-func liftAlloc(closure *closure, df domFrontier, alloc *Alloc, newPhis BlockMap[[]newPhi]) {
+func liftAlloc(df domFrontier, alloc *Alloc, newPhis BlockMap[[]newPhi]) {
 	fn := alloc.Parent()
 
 	defblocks := fn.blockset(0)
@@ -1030,15 +923,11 @@ func liftAlloc(closure *closure, df domFrontier, alloc *Alloc, newPhis BlockMap[
 							continue
 						}
 						live := false
-						if closure == nil {
-							live = true
-						} else {
-							for _, ref := range *alloc.Referrers() {
-								if _, ok := ref.(*Load); ok {
-									if closure.has(y, ref.Block()) {
-										live = true
-										break
-									}
+						for _, ref := range *alloc.Referrers() {
+							if _, ok := ref.(*Load); ok {
+								if y.Reaches(ref.Block()) {
+									live = true
+									break
 								}
 							}
 						}

@@ -386,6 +386,8 @@ type Function struct {
 	referrers []Instruction // referring instructions (iff Parent() != nil)
 	anonIdx   int32         // position of a nested function in parent's AnonFuncs. fn.Parent()!=nil => fn.Parent().AnonFunc[fn.anonIdx] == fn.
 
+	SCCs []*SCC // SCC DAG in reverse topological order
+
 	recvtypeparams *types.TypeParamList // receiver type parameters of this function. recvtypeparams.Len() > 0 => method on generic or instance of generic type
 	recvtypeargs   []types.Type         // type arguments that instantiated recvtypeparams. len(recvtypeargs) > 0 => method on instance of generic type
 	typeparams     *types.TypeParamList // type parameters of this function. typeparams.Len() > 0 => generic or instance of generic function or method
@@ -436,10 +438,18 @@ type BasicBlock struct {
 	parent       *Function      // parent function
 	Instrs       []Instruction  // instructions in order
 	Preds, Succs []*BasicBlock  // predecessors and successors
+	SCC          *SCC           // strongly connected component
 	succs2       [2]*BasicBlock // initial space for Succs
 	dom          domInfo        // dominator tree info
 	gaps         int            // number of nil Instrs (transient)
 	rundefers    int            // number of rundefers (transient)
+}
+
+type SCC struct {
+	Index        int
+	Blocks       []*BasicBlock
+	Preds, Succs []*SCC
+	reachable    big.Int
 }
 
 // Pure values ----------------------------------------

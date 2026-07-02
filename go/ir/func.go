@@ -398,6 +398,7 @@ func (f *Function) finishBody() {
 	optimizeBlocks(f)
 	buildReferrers(f)
 	buildDomTree(f)
+	buildSCCs(f)
 
 	if f.Prog.mode&NaiveForm == 0 {
 		for lift(f) {
