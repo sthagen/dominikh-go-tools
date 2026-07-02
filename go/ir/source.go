@@ -152,7 +152,7 @@ func findNamedFunc(pkg *Package, pos token.Pos) *Function {
 // EnclosingFunction to locate the Function, then ValueForExpr to find
 // the ir.Value.)
 func (f *Function) ValueForExpr(e ast.Expr) (value Value, isAddr bool) {
-	e = unparen(e)
+	e = ast.Unparen(e)
 	entry := f.exprToValue[e]
 	return entry.v, entry.isAddr
 }

@@ -99,7 +99,7 @@ func makeDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) *debugRef {
 		panic("nil")
 	}
 	var obj types.Object
-	e = unparen(e)
+	e = ast.Unparen(e)
 	if id, ok := e.(*ast.Ident); ok {
 		if isBlankIdent(id) {
 			return nil
