@@ -179,6 +179,19 @@ func lift(fn *Function) bool {
 	// Number nodes, for liftable
 	numberNodesPerBlock(fn)
 
+	heads := make(BlockMap[int], len(fn.Blocks))
+	for i := range heads {
+		heads[i] = -1
+	}
+	for _, b := range fn.Blocks {
+		for i, instr := range b.Instrs {
+			if _, ok := instr.(*Phi); !ok {
+				heads[b.Index] = i
+				break
+			}
+		}
+	}
+
 	for _, b := range fn.Blocks {
 		b.gaps = 0
 		b.rundefers = 0
@@ -186,7 +199,7 @@ func lift(fn *Function) bool {
 		for _, instr := range b.Instrs {
 			switch instr := instr.(type) {
 			case *Alloc:
-				if !liftable(instr, instructions) {
+				if !liftable(instr, instructions, heads) {
 					instr.index = -1
 					continue
 				}
@@ -602,7 +615,7 @@ type liftInstructions struct {
 //		}
 //		println(x_)
 //	}
-func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
+func liftable(alloc *Alloc, instructions BlockMap[liftInstructions], heads BlockMap[int]) bool {
 	fn := alloc.block.parent
 
 	// Don't lift result values in functions that defer
@@ -697,16 +710,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 			// There are no liftable instructions (for this alloc) in this block. Set firstUnliftable to the
 			// first non-head instruction to avoid inserting the store before phi instructions, which would
 			// fail validation.
-			first := -1
-		instrLoop:
-			for i, instr := range fn.Blocks[i].Instrs {
-				switch instr.(type) {
-				case *Phi:
-				default:
-					first = i
-					break instrLoop
-				}
-			}
+			first := heads[i]
 			blocks[i].firstUnliftable = first
 		} else {
 			blocks[i].firstUnliftable = blocks[i].lastLiftable + 1
@@ -756,7 +760,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions]) bool {
 	hasLiftableOther := false
 	hasUnliftable := false
 	for _, b := range fn.Blocks {
-		desc := blocks[b.Index]
+		desc := &blocks[b.Index]
 		hasLiftableLoad = hasLiftableLoad || desc.hasLiftableLoad
 		hasLiftableOther = hasLiftableOther || desc.hasLiftableOther
 		if desc.isUnliftable {
