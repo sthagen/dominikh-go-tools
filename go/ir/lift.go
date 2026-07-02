@@ -1071,6 +1071,7 @@ func rename(u_ *BasicBlock, renaming_ []Value, newPhis BlockMap[[]newPhi]) {
 	}
 
 	worklist := []worklistEntry{{u_, renaming_}}
+	var freelist [][]Value
 
 	for len(worklist) > 0 {
 		entry := worklist[len(worklist)-1]
@@ -1180,8 +1181,17 @@ func rename(u_ *BasicBlock, renaming_ []Value, newPhis BlockMap[[]newPhi]) {
 		// Continue depth-first recursion over domtree, pushing a
 		// fresh copy of the renaming map for each subtree.
 		for _, v := range slices.Backward(u.dom.children) {
-			worklist = append(worklist, worklistEntry{v, slices.Clone(renaming)})
+			var r []Value
+			if len(freelist) == 0 {
+				r = make([]Value, len(renaming))
+			} else {
+				r = freelist[len(freelist)-1]
+				freelist = freelist[:len(freelist)-1]
+			}
+			copy(r, renaming)
+			worklist = append(worklist, worklistEntry{v, r})
 		}
+		freelist = append(freelist, renaming)
 	}
 }
 
