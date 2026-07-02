@@ -1064,113 +1064,124 @@ func renamed(fn *Function, renaming []Value, alloc *Alloc) Value {
 // renaming is a map from *Alloc (keyed by index number) to its
 // dominating stored value; newPhis[x] is the set of new φ-nodes to be
 // prepended to block x.
-func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi]) {
-	// Each φ-node becomes the new name for its associated Alloc.
-	for _, np := range newPhis[u.Index] {
-		phi := np.phi
-		alloc := np.alloc
-		renaming[alloc.index] = phi
+func rename(u_ *BasicBlock, renaming_ []Value, newPhis BlockMap[[]newPhi]) {
+	type worklistEntry struct {
+		u        *BasicBlock
+		renaming []Value
 	}
 
-	// Rename loads and stores of allocs.
-	for i, instr := range u.Instrs {
-		switch instr := instr.(type) {
-		case *Alloc:
-			if instr.index >= 0 { // store of zero to Alloc cell
-				// Replace dominated loads by the zero value.
-				renaming[instr.index] = nil
-				if debugLifting {
-					fmt.Fprintf(os.Stderr, "\tkill alloc %s\n", instr)
-				}
-				// Delete the Alloc.
-				u.Instrs[i] = nil
-				u.gaps++
-			}
+	worklist := []worklistEntry{{u_, renaming_}}
 
-		case *Store:
-			if alloc, ok := instr.Addr.(*Alloc); ok && alloc.index >= 0 { // store to Alloc cell
-				// Replace dominated loads by the stored value.
-				renaming[alloc.index] = instr.Val
-				if debugLifting {
-					fmt.Fprintf(os.Stderr, "\tkill store %s; new value: %s\n",
-						instr, instr.Val.Name())
-				}
-				if refs := instr.Addr.Referrers(); refs != nil {
-					*refs = removeInstr(*refs, instr)
-				}
-				if refs := instr.Val.Referrers(); refs != nil {
-					*refs = removeInstr(*refs, instr)
-				}
-				// Delete the Store.
-				u.Instrs[i] = nil
-				u.gaps++
-			}
+	for len(worklist) > 0 {
+		entry := worklist[len(worklist)-1]
+		worklist = worklist[:len(worklist)-1]
+		u, renaming := entry.u, entry.renaming
 
-		case *Load:
-			if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
-				newval := renamed(u.Parent(), renaming, alloc)
-				if debugLifting {
-					fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
-						instr.Name(), instr, newval)
-				}
-				// Replace all references to the loaded value by the dominating
-				// stored value.
-				replaceAll(instr, newval)
-				u.Instrs[i] = nil
-				u.gaps++
-			}
+		// Each φ-node becomes the new name for its associated Alloc.
+		for _, np := range newPhis[u.Index] {
+			phi := np.phi
+			alloc := np.alloc
+			renaming[alloc.index] = phi
+		}
 
-		case *debugRef:
-			if x, ok := instr.X.(*Alloc); ok && x.index >= 0 {
-				if instr.IsAddr {
-					instr.X = renamed(u.Parent(), renaming, x)
-					instr.IsAddr = false
-
-					// Add DebugRef to instr.X's referrers.
-					if refs := instr.X.Referrers(); refs != nil {
-						*refs = append(*refs, instr)
+		// Rename loads and stores of allocs.
+		for i, instr := range u.Instrs {
+			switch instr := instr.(type) {
+			case *Alloc:
+				if instr.index >= 0 { // store of zero to Alloc cell
+					// Replace dominated loads by the zero value.
+					renaming[instr.index] = nil
+					if debugLifting {
+						fmt.Fprintf(os.Stderr, "\tkill alloc %s\n", instr)
 					}
-				} else {
-					// A source expression denotes the address
-					// of an Alloc that was optimized away.
-					instr.X = nil
-
-					// Delete the DebugRef.
+					// Delete the Alloc.
 					u.Instrs[i] = nil
 					u.gaps++
 				}
-			}
-		}
-	}
 
-	// For each φ-node in a CFG successor, rename the edge.
-	for _, v := range u.Succs {
-		phis := newPhis[v.Index]
-		if len(phis) == 0 {
-			continue
-		}
-		i := v.predIndex(u)
-		for _, np := range phis {
-			phi := np.phi
-			alloc := np.alloc
-			newval := renamed(u.Parent(), renaming, alloc)
-			if debugLifting {
-				fmt.Fprintf(os.Stderr, "\tsetphi %s edge %s -> %s (#%d) (alloc=%s) := %s\n",
-					phi.Name(), u, v, i, alloc.Name(), newval.Name())
-			}
-			phi.Edges[i] = newval
-			if prefs := newval.Referrers(); prefs != nil {
-				*prefs = append(*prefs, phi)
-			}
-		}
-	}
+			case *Store:
+				if alloc, ok := instr.Addr.(*Alloc); ok && alloc.index >= 0 { // store to Alloc cell
+					// Replace dominated loads by the stored value.
+					renaming[alloc.index] = instr.Val
+					if debugLifting {
+						fmt.Fprintf(os.Stderr, "\tkill store %s; new value: %s\n",
+							instr, instr.Val.Name())
+					}
+					if refs := instr.Addr.Referrers(); refs != nil {
+						*refs = removeInstr(*refs, instr)
+					}
+					if refs := instr.Val.Referrers(); refs != nil {
+						*refs = removeInstr(*refs, instr)
+					}
+					// Delete the Store.
+					u.Instrs[i] = nil
+					u.gaps++
+				}
 
-	// Continue depth-first recursion over domtree, pushing a
-	// fresh copy of the renaming map for each subtree.
-	r := make([]Value, len(renaming))
-	for _, v := range u.dom.children {
-		copy(r, renaming)
-		rename(v, r, newPhis)
+			case *Load:
+				if alloc, ok := instr.X.(*Alloc); ok && alloc.index >= 0 { // load of Alloc cell
+					newval := renamed(u.Parent(), renaming, alloc)
+					if debugLifting {
+						fmt.Fprintf(os.Stderr, "\tupdate load %s = %s with %s\n",
+							instr.Name(), instr, newval)
+					}
+					// Replace all references to the loaded value by the dominating
+					// stored value.
+					replaceAll(instr, newval)
+					u.Instrs[i] = nil
+					u.gaps++
+				}
+
+			case *debugRef:
+				if x, ok := instr.X.(*Alloc); ok && x.index >= 0 {
+					if instr.IsAddr {
+						instr.X = renamed(u.Parent(), renaming, x)
+						instr.IsAddr = false
+
+						// Add DebugRef to instr.X's referrers.
+						if refs := instr.X.Referrers(); refs != nil {
+							*refs = append(*refs, instr)
+						}
+					} else {
+						// A source expression denotes the address
+						// of an Alloc that was optimized away.
+						instr.X = nil
+
+						// Delete the DebugRef.
+						u.Instrs[i] = nil
+						u.gaps++
+					}
+				}
+			}
+		}
+
+		// For each φ-node in a CFG successor, rename the edge.
+		for _, v := range u.Succs {
+			phis := newPhis[v.Index]
+			if len(phis) == 0 {
+				continue
+			}
+			i := v.predIndex(u)
+			for _, np := range phis {
+				phi := np.phi
+				alloc := np.alloc
+				newval := renamed(u.Parent(), renaming, alloc)
+				if debugLifting {
+					fmt.Fprintf(os.Stderr, "\tsetphi %s edge %s -> %s (#%d) (alloc=%s) := %s\n",
+						phi.Name(), u, v, i, alloc.Name(), newval.Name())
+				}
+				phi.Edges[i] = newval
+				if prefs := newval.Referrers(); prefs != nil {
+					*prefs = append(*prefs, phi)
+				}
+			}
+		}
+
+		// Continue depth-first recursion over domtree, pushing a
+		// fresh copy of the renaming map for each subtree.
+		for _, v := range slices.Backward(u.dom.children) {
+			worklist = append(worklist, worklistEntry{v, slices.Clone(renaming)})
+		}
 	}
 }
 
