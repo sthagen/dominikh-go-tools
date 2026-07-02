@@ -583,6 +583,20 @@ type liftInstructions struct {
 	}
 }
 
+type liftableBlockDesc struct {
+	// is the block (partially) unliftable, because it contains unliftable
+	// instructions or is reachable by an unliftable block
+	isUnliftable     bool
+	hasLiftableLoad  bool
+	hasLiftableOther bool
+	// we need to emit stores in predecessors because the unliftable use is in
+	// a phi
+	storeInPreds bool
+
+	lastLiftable    int
+	firstUnliftable int
+}
+
 // liftable determines if alloc can be lifted, and records instructions to split partially liftable allocs.
 //
 // In the trivial case, all uses of the alloc can be lifted. This is the case when it is only used for storing into and
@@ -641,18 +655,13 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions], heads Block
 		}
 	}
 
-	type blockDesc struct {
-		// is the block (partially) unliftable, because it contains unliftable instructions or is reachable by an unliftable block
-		isUnliftable     bool
-		hasLiftableLoad  bool
-		hasLiftableOther bool
-		// we need to emit stores in predecessors because the unliftable use is in a phi
-		storeInPreds bool
-
-		lastLiftable    int
-		firstUnliftable int
+	blocks := fn.liftableBlockMap
+	if len(blocks) != len(fn.Blocks) {
+		blocks = make(BlockMap[liftableBlockDesc], len(fn.Blocks))
+		fn.liftableBlockMap = blocks
+	} else {
+		clear(blocks)
 	}
-	blocks := make(BlockMap[blockDesc], len(fn.Blocks))
 	for _, b := range fn.Blocks {
 		blocks[b.Index].lastLiftable = -1
 		blocks[b.Index].firstUnliftable = len(b.Instrs) + 1

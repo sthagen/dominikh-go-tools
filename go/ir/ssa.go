@@ -401,19 +401,20 @@ type Function struct {
 	generic        *generic             // instances of this function, if generic
 
 	// The following fields are cleared after building.
-	build        buildFunc                // algorithm to build function body (nil => built)
-	currentBlock *BasicBlock              // where to emit code
-	vars         map[*types.Var]Value     // addresses of local variables
-	results      []*Alloc                 // result allocations of the current function
-	returnVars   []*types.Var             // variables for a return statement. Either results or for range-over-func a parent's results
-	targets      *targets                 // linked stack of branch targets
-	lblocks      map[*types.Label]*lblock // labelled blocks
-	subst        *subster                 // type parameter substitutions (if non-nil)
-	jump         *types.Var               // synthetic variable for the yield state (non-nil => range-over-func)
-	deferstack   *types.Var               // synthetic variable holding enclosing ssa:deferstack()
-	source       *Function                // nearest enclosing source function
-	exits        []*exit                  // exits of the function that need to be resolved
-	uniq         int64                    // source of unique ints within the source tree while building
+	build            buildFunc                // algorithm to build function body (nil => built)
+	currentBlock     *BasicBlock              // where to emit code
+	vars             map[*types.Var]Value     // addresses of local variables
+	results          []*Alloc                 // result allocations of the current function
+	returnVars       []*types.Var             // variables for a return statement. Either results or for range-over-func a parent's results
+	targets          *targets                 // linked stack of branch targets
+	lblocks          map[*types.Label]*lblock // labelled blocks
+	subst            *subster                 // type parameter substitutions (if non-nil)
+	jump             *types.Var               // synthetic variable for the yield state (non-nil => range-over-func)
+	deferstack       *types.Var               // synthetic variable holding enclosing ssa:deferstack()
+	source           *Function                // nearest enclosing source function
+	exits            []*exit                  // exits of the function that need to be resolved
+	uniq             int64                    // source of unique ints within the source tree while building
+	liftableBlockMap BlockMap[liftableBlockDesc]
 
 	blocksets [4]BlockSet
 }
