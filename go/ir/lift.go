@@ -97,11 +97,26 @@ func buildDomFrontier(fn *Function) domFrontier {
 }
 
 func removeInstr(refs []Instruction, instr Instruction) []Instruction {
-	return removeInstrsIf(refs, func(i Instruction) bool { return i == instr })
-}
-
-func removeInstrsIf(refs []Instruction, p func(Instruction) bool) []Instruction {
-	return slices.DeleteFunc(refs, p)
+	s := refs
+	i := -1
+	for j := range s {
+		if instr == s[j] {
+			i = j
+			break
+		}
+	}
+	if i == -1 {
+		return s
+	}
+	// Don't start copying elements until we find one to delete.
+	for j := i + 1; j < len(s); j++ {
+		if v := s[j]; v != instr {
+			s[i] = v
+			i++
+		}
+	}
+	clear(s[i:]) // zero/nil out the obsolete elements, for GC
+	return s[:i]
 }
 
 func clearInstrs(instrs []Instruction) {
