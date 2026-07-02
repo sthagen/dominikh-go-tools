@@ -524,7 +524,7 @@ type store struct {
 	source ast.Node
 
 	// if debugRef is set no other fields will be set
-	debugRef *DebugRef
+	debugRef *debugRef
 }
 
 type storebuf struct{ stores []store }
@@ -533,7 +533,7 @@ func (sb *storebuf) store(lhs lvalue, rhs Value, source ast.Node) {
 	sb.stores = append(sb.stores, store{lhs, rhs, source, nil})
 }
 
-func (sb *storebuf) storeDebugRef(ref *DebugRef) {
+func (sb *storebuf) storeDebugRef(ref *debugRef) {
 	sb.stores = append(sb.stores, store{debugRef: ref})
 }
 

@@ -91,7 +91,7 @@ func emitDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) {
 	f.emit(ref, nil)
 }
 
-func makeDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) *DebugRef {
+func makeDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) *debugRef {
 	if !f.debugInfo() {
 		return nil // debugging not enabled
 	}
@@ -110,7 +110,7 @@ func makeDebugRef(f *Function, e ast.Expr, v Value, isAddr bool) *DebugRef {
 			return nil
 		}
 	}
-	return &DebugRef{
+	return &debugRef{
 		X:      v,
 		Expr:   e,
 		IsAddr: isAddr,

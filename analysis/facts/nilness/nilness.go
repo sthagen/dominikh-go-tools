@@ -653,7 +653,7 @@ start:
 					// we finished execution the select.
 					s.setOuter(v.States[0].Chan, NeverNil)
 				}
-			case *ir.DebugRef, *ir.Jump, *ir.BlankStore, *ir.Phi,
+			case *ir.Jump, *ir.BlankStore, *ir.Phi,
 				*ir.Panic, *ir.Return, *ir.RunDefers, *ir.Unreachable, *ir.ConstantSwitch,
 				*ir.UnOp, *ir.BinOp, *ir.CompositeValue, *ir.Range, *ir.Next:
 			default:

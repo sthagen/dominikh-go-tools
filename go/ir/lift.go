@@ -656,7 +656,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions], heads Block
 				hasUnliftable = true
 			}
 		case *Load:
-		case *DebugRef:
+		case *debugRef:
 		case *Phi:
 			inHead = true
 			hasUnliftable = true
@@ -693,7 +693,7 @@ func liftable(alloc *Alloc, instructions BlockMap[liftInstructions], heads Block
 		case *Load:
 			desc.hasLiftableLoad = true
 			hasLiftable = true
-		case *DebugRef:
+		case *debugRef:
 			desc.hasLiftableOther = true
 		}
 		if hasLiftable {
@@ -1096,7 +1096,7 @@ func rename(u *BasicBlock, renaming []Value, newPhis BlockMap[[]newPhi]) {
 				u.gaps++
 			}
 
-		case *DebugRef:
+		case *debugRef:
 			if x, ok := instr.X.(*Alloc); ok && x.index >= 0 {
 				if instr.IsAddr {
 					instr.X = renamed(u.Parent(), renaming, x)

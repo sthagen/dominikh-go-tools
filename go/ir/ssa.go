@@ -373,6 +373,11 @@ type Function struct {
 	Pkg    *Package  // enclosing package; nil for shared funcs (wrappers and error.Error)
 	Prog   *Program  // enclosing program
 
+	exprToValue map[ast.Expr]struct {
+		v      Value
+		isAddr bool
+	}
+
 	buildshared *task // wait for a shared function to be done building (may be nil if <=1 builder ever needs to wait)
 
 	// These fields are populated only when the function body is built:
@@ -1482,11 +1487,11 @@ type MapUpdate struct {
 	Value Value
 }
 
-// A DebugRef instruction maps a source-level expression Expr to the
+// A debugRef instruction maps a source-level expression Expr to the
 // IR value X that represents the value (!IsAddr) or address (IsAddr)
 // of that expression.
 //
-// DebugRef is a pseudo-instruction: it has no dynamic effect.
+// debugRef is a pseudo-instruction: it has no dynamic effect.
 //
 // Pos() returns Expr.Pos(), the start position of the source-level
 // expression.  This is not the same as the "designated" token as
@@ -1515,7 +1520,7 @@ type MapUpdate struct {
 //	; *ast.CallExpr @ 102:9 is t5
 //	; var x float64 @ 109:72 is x
 //	; address of *ast.CompositeLit @ 216:10 is t0
-type DebugRef struct {
+type debugRef struct {
 	anInstruction
 	Expr   ast.Expr     // the referring expression (never *ast.ParenExpr)
 	object types.Object // the identity of the source var/func
@@ -1972,7 +1977,7 @@ func (c *NamedConst) RelString(from *types.Package) string { return relString(c,
 func (v *Function) Pos() token.Pos   { return v.pos }
 func (v *Function) Source() ast.Node { return v.syntax }
 
-func (d *DebugRef) Object() types.Object { return d.object }
+func (d *debugRef) Object() types.Object { return d.object }
 
 // Func returns the package-level function of the specified name,
 // or nil if not found.
@@ -2002,7 +2007,7 @@ func (p *Package) Type(name string) (t *Type) {
 	return
 }
 
-func (s *DebugRef) Pos() token.Pos { return s.Expr.Pos() }
+func (s *debugRef) Pos() token.Pos { return s.Expr.Pos() }
 
 // Operands.
 
@@ -2058,7 +2063,7 @@ func (v *SliceToArray) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
 }
 
-func (s *DebugRef) Operands(rands []*Value) []*Value {
+func (s *debugRef) Operands(rands []*Value) []*Value {
 	return append(rands, &s.X)
 }
 

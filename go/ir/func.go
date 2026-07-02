@@ -409,6 +409,33 @@ func (f *Function) finishBody() {
 		}
 	}
 
+	if f.debugInfo() {
+		// Turn debug references into a map
+		f.exprToValue = map[ast.Expr]struct {
+			v      Value
+			isAddr bool
+		}{}
+		for _, b := range f.Blocks {
+			newInstrs := b.Instrs[:0]
+			for _, instr := range b.Instrs {
+				if instr, ok := instr.(*debugRef); ok {
+					if refs := instr.X.Referrers(); refs != nil {
+						*refs = removeInstr(*refs, instr)
+					}
+					if _, ok := f.exprToValue[instr.Expr]; !ok {
+						f.exprToValue[instr.Expr] = struct {
+							v      Value
+							isAddr bool
+						}{instr.X, instr.IsAddr}
+					}
+					continue
+				}
+				newInstrs = append(newInstrs, instr)
+			}
+			b.Instrs = newInstrs
+		}
+	}
+
 	// clear remaining builder state
 	f.results = nil    // (used by lifting)
 	f.deferstack = nil // (used by lifting)
