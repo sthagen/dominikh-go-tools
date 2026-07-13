@@ -225,3 +225,8 @@ func fn43(b bool, x any) any {
 	}
 	return x
 }
+
+// Make sure we don't crash upon seeing a call to the recover builtin.
+func fn44() any {
+	return recover()
+}

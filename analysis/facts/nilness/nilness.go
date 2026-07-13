@@ -357,6 +357,8 @@ start:
 					s.setOuter(v, NeverNil)
 				case "ssa:wrapnilchk":
 					s.setOuter(v, NeverNil)
+				case "recover":
+					s.setOuter(v, MaybeNil)
 				default:
 					panic(fmt.Sprintf("internal error: unhandled builtin %s", callee.Name()))
 				}
