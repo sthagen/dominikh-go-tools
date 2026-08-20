@@ -144,8 +144,9 @@ func IsTypeWithName(typ types.Type, name string) bool {
 	}
 }
 
-// IsPointerLike returns true if type T is like a pointer. This returns true for all nillable types,
-// unsafe.Pointer, and type sets where at least one term is pointer-like.
+// IsPointerLike returns true if type T is like a pointer. This returns true
+// for all nillable types, unsafe.Pointer, type sets where at least one term is
+// pointer-like, and type sets without structural restrictions..
 func IsPointerLike(T types.Type) bool {
 	switch T := T.Underlying().(type) {
 	case *types.Interface:
@@ -161,7 +162,7 @@ func IsPointerLike(T types.Type) bool {
 					return true
 				}
 			}
-			return false
+			return len(terms) == 0
 		}
 	case *types.Chan, *types.Map, *types.Signature, *types.Pointer, *types.Slice:
 		return true

@@ -38,3 +38,13 @@ func fn26() *[0]int { // want fn26:`nilness: \[\{[^ ]+ AlwaysNil\}\]`
 	type T *[0]int
 	return (T)(x)
 }
+
+func fn45[T comparable](vals ...T) T { // want fn45:`nilness: \[\{[^ ]+ MaybeNil\}\]`
+	var zero T
+	for _, val := range vals {
+		if val != zero {
+			return val
+		}
+	}
+	return zero
+}
